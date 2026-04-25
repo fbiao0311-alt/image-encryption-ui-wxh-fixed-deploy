@@ -12,7 +12,8 @@ export default function EncryptionPage() {
   const [encryptedPreview, setEncryptedPreview] = useState('')
   const [decryptedPreview, setDecryptedPreview] = useState('')
   const [encryptedBytes, setEncryptedBytes] = useState(null)
-  const [isProcessing, setIsProcessing] = useState(false)
+  const [isEncrypting, setIsEncrypting] = useState(false)
+  const [isDecrypting, setIsDecrypting] = useState(false)
   const [error, setError] = useState('')
 
   const [encryptMetrics, setEncryptMetrics] = useState({
@@ -158,30 +159,42 @@ export default function EncryptionPage() {
   }
 
   const calculateSSIM = (a, b) => {
-    const x = []
-    const y = []
+    const maxSamples = 20000
+    const pixelCount = Math.floor(a.length / 4)
+    if (pixelCount === 0) return 0
 
-    for (let i = 0; i < a.length; i += 4) {
+    const step = Math.max(1, Math.floor(pixelCount / maxSamples))
+
+    let n = 0
+    let sumX = 0
+    let sumY = 0
+
+    for (let pixel = 0; pixel < pixelCount; pixel += step) {
+      const i = pixel * 4
       const grayA = 0.299 * a[i] + 0.587 * a[i + 1] + 0.114 * a[i + 2]
       const grayB = 0.299 * b[i] + 0.587 * b[i + 1] + 0.114 * b[i + 2]
-      x.push(grayA)
-      y.push(grayB)
+      sumX += grayA
+      sumY += grayB
+      n += 1
     }
 
-    const n = x.length
     if (n === 0) return 0
 
-    const meanX = x.reduce((s, v) => s + v, 0) / n
-    const meanY = y.reduce((s, v) => s + v, 0) / n
+    const meanX = sumX / n
+    const meanY = sumY / n
 
     let varX = 0
     let varY = 0
     let covXY = 0
 
-    for (let i = 0; i < n; i += 1) {
-      varX += (x[i] - meanX) * (x[i] - meanX)
-      varY += (y[i] - meanY) * (y[i] - meanY)
-      covXY += (x[i] - meanX) * (y[i] - meanY)
+    for (let pixel = 0; pixel < pixelCount; pixel += step) {
+      const i = pixel * 4
+      const grayA = 0.299 * a[i] + 0.587 * a[i + 1] + 0.114 * a[i + 2]
+      const grayB = 0.299 * b[i] + 0.587 * b[i + 1] + 0.114 * b[i + 2]
+
+      varX += (grayA - meanX) * (grayA - meanX)
+      varY += (grayB - meanY) * (grayB - meanY)
+      covXY += (grayA - meanX) * (grayB - meanY)
     }
 
     varX /= n
@@ -256,7 +269,7 @@ export default function EncryptionPage() {
     }
 
     try {
-      setIsProcessing(true)
+      setIsEncrypting(true)
 
       const img = await loadImageElement(imagePreview)
       const canvas = document.createElement('canvas')
@@ -307,7 +320,7 @@ export default function EncryptionPage() {
       console.error(err)
       setError('加密失败，请检查图片或比特流。')
     } finally {
-      setIsProcessing(false)
+      setIsEncrypting(false)
     }
   }
 
@@ -330,7 +343,7 @@ export default function EncryptionPage() {
     }
 
     try {
-      setIsProcessing(true)
+      setIsDecrypting(true)
 
       const img = await loadImageElement(imagePreview)
       const canvas = document.createElement('canvas')
@@ -368,7 +381,7 @@ export default function EncryptionPage() {
       console.error(err)
       setError('解密失败，请重试。')
     } finally {
-      setIsProcessing(false)
+      setIsDecrypting(false)
     }
   }
 
@@ -475,18 +488,18 @@ export default function EncryptionPage() {
               <div className="grid grid-cols-1 gap-3">
                 <button
                   onClick={handleEncrypt}
-                  disabled={isProcessing}
+                  disabled={isEncrypting || isDecrypting}
                   className="rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
                 >
-                  {isProcessing ? '处理中...' : '开始加密'}
+                  {isEncrypting ? '加密中...' : '开始加密'}
                 </button>
 
                 <button
                   onClick={handleDecrypt}
-                  disabled={isProcessing}
+                  disabled={isEncrypting || isDecrypting}
                   className="rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
                 >
-                  {isProcessing ? '处理中...' : '开始解密'}
+                  {isDecrypting ? '解密中...' : '开始解密'}
                 </button>
 
                 <button
